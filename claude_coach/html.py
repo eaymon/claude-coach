@@ -65,6 +65,53 @@ def _cat_bars(by_cat: dict[str, int]) -> str:
     return "".join(rows)
 
 
+def _trend(sessions: dict[str, Session], findings: list[Finding], max_days: int = 21) -> str:
+    """SVG bar chart: findings per day, with a session-count line on top."""
+    by_sid_date = {}
+    for s in sessions.values():
+        if s.first_ts:
+            by_sid_date[s.session_id] = s.first_ts.date()
+    if not by_sid_date:
+        return ""
+    find_by_day = Counter()
+    for f in findings:
+        d = by_sid_date.get(f.session_id)
+        if d:
+            find_by_day[d] += 1
+    sess_by_day = Counter(by_sid_date.values())
+    days = sorted(set(find_by_day) | set(sess_by_day))[-max_days:]
+    if len(days) < 2:
+        return ""  # a trend needs at least two days
+
+    w, h, pad_b, pad_t = 920, 150, 26, 12
+    n = len(days)
+    slot = w / n
+    bw = min(34, slot * 0.6)
+    top = max([find_by_day.get(d, 0) for d in days] + [1])
+    usable = h - pad_b - pad_t
+
+    bars, labels, pts = [], [], []
+    for i, d in enumerate(days):
+        fc = find_by_day.get(d, 0)
+        bh = (fc / top) * usable
+        x = i * slot + (slot - bw) / 2
+        y = pad_t + (usable - bh)
+        bars.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="3" fill="{ACCENT}"/>')
+        if fc:
+            bars.append(f'<text x="{x + bw/2:.1f}" y="{y-4:.1f}" text-anchor="middle" fill="#9aa0b4" font-size="10">{fc}</text>')
+        if i % max(1, n // 10) == 0:
+            labels.append(f'<text x="{i*slot + slot/2:.1f}" y="{h-8}" text-anchor="middle" fill="#6b7280" font-size="10">{d.strftime("%m/%d")}</text>')
+        pts.append(f"{i*slot + slot/2:.1f},{pad_t + usable - (sess_by_day.get(d,0)/max(sess_by_day.values()))*usable:.1f}")
+    line = f'<polyline points="{" ".join(pts)}" fill="none" stroke="#5b9bd5" stroke-width="2" opacity="0.8"/>'
+    dots = "".join(f'<circle cx="{p.split(",")[0]}" cy="{p.split(",")[1]}" r="2.5" fill="#5b9bd5"/>' for p in pts)
+    return (
+        f'<svg viewBox="0 0 {w} {h}" width="100%" preserveAspectRatio="xMidYMid meet">'
+        + "".join(bars) + line + dots + "".join(labels) + "</svg>"
+        + '<div class="legend"><div class="leg"><span class="swatch" style="background:'
+        + ACCENT + '"></span>findings/day</div><div class="leg"><span class="swatch" style="background:#5b9bd5"></span>sessions/day</div></div>'
+    )
+
+
 def _stat(label: str, value: str, sub: str = "") -> str:
     sub_html = f'<div class="stat-sub">{html.escape(sub)}</div>' if sub else ""
     return (f'<div class="stat"><div class="stat-val">{html.escape(value)}</div>'
@@ -87,7 +134,8 @@ def _finding_card(f: Finding) -> str:
 def _session_rows(sessions: dict[str, Session], findings: list[Finding]) -> str:
     by_sid = Counter(f.session_id for f in findings)
     rows = []
-    for s in sorted(sessions.values(), key=lambda s: -s.message_count):
+    ordered = sorted(sessions.values(), key=lambda s: -s.message_count)
+    for s in ordered[:50]:
         yolo = f"{s.yolo_share:.0%}" if sum(s.perm_modes.values()) else "—"
         dur = f"{s.duration_min:.0f}m" if s.duration_min else "—"
         rows.append(
@@ -100,6 +148,8 @@ def _session_rows(sessions: dict[str, Session], findings: list[Finding]) -> str:
             f"<td class='num'>{yolo}</td>"
             f"<td class='num'>{by_sid.get(s.session_id, 0)}</td></tr>"
         )
+    if len(ordered) > 50:
+        rows.append(f"<tr><td colspan='8' class='muted'>… and {len(ordered) - 50} more sessions</td></tr>")
     return "".join(rows)
 
 
@@ -131,6 +181,9 @@ def to_html(sessions: dict[str, Session], findings: list[Finding], generated: st
         if findings else '<p class="muted">✅ No anti-patterns detected. Clean sessions.</p>'
     )
 
+    trend_svg = _trend(sessions, findings)
+    trend_section = f'<h2>Trend</h2><section class="panel">{trend_svg}</section>' if trend_svg else ""
+
     gen = f" · {html.escape(generated)}" if generated else ""
 
     return f"""<!doctype html>
@@ -153,6 +206,7 @@ def to_html(sessions: dict[str, Session], findings: list[Finding], generated: st
   .stat-sub {{ color:var(--muted); font-size:12px; margin-top:6px; opacity:.85; }}
   .grid2 {{ display:grid; grid-template-columns:220px 1fr; gap:18px; align-items:center;
             background:var(--card); border:1px solid var(--line); border-radius:12px; padding:22px; margin-bottom:28px; }}
+  .panel {{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin-bottom:28px; }}
   .donut-wrap {{ text-align:center; }}
   .legend {{ display:flex; gap:16px; justify-content:center; margin-top:6px; font-size:13px; color:var(--muted); }}
   .leg b {{ color:var(--txt); }}
@@ -201,6 +255,8 @@ def to_html(sessions: dict[str, Session], findings: list[Finding], generated: st
     <div class="donut-wrap">{_donut(sev, stats['findings'])}<div class="legend">{legend}</div></div>
     <div>{_cat_bars(stats['by_category'])}</div>
   </section>
+
+  {trend_section}
 
   <h2>Findings</h2>
   {findings_html}
