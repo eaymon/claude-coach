@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-coach"
+version = "0.1.0"
+description = "Local anti-pattern auditor for Claude Code sessions — observe, measure, improve your agentic workflow."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["claude", "claude-code", "ai", "agent", "coaching", "anti-patterns", "developer-productivity"]
+authors = [{ name = "eaymon" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Quality Assurance",
+    "Environment :: Console",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/eaymon/claude-coach"
+Issues = "https://github.com/eaymon/claude-coach/issues"
+
+[project.scripts]
+claude-coach = "claude_coach.__main__:main"
+
+[tool.setuptools]
+packages = ["claude_coach"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
