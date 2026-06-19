@@ -32,8 +32,17 @@ claude-coach path/to/session.jsonl # audit one log, a project dir, or any path
 claude-coach --since 7d            # only recent sessions (7d / 2w / 24h)
 claude-coach --rules               # list the anti-pattern catalog
 claude-coach --readiness ./my-repo # score a project's agentic readiness
+claude-coach --html report.html   # self-contained visual dashboard (no CDN/JS deps)
 claude-coach --json r.json --markdown r.md   # shareable reports
 ```
+
+### Visual dashboard
+
+`--html` writes a single self-contained file (inline SVG charts, no network, no
+JavaScript) — a severity donut, category bars, summary cards, color-coded finding
+cards, and a per-session table:
+
+![claude-coach dashboard](docs/dashboard.png)
 
 ### Example
 

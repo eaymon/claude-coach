@@ -40,6 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--since", type=_parse_since, metavar="DUR", help="only sessions active within e.g. 7d, 2w, 24h")
     p.add_argument("--json", metavar="FILE", help="write JSON report to FILE")
     p.add_argument("--markdown", metavar="FILE", help="write a markdown report to FILE")
+    p.add_argument("--html", metavar="FILE", help="write a self-contained HTML dashboard to FILE")
     p.add_argument("--version", action="version", version=f"claude-coach {__version__}")
     return p
 
@@ -62,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     sessions = parse_files(paths)
+    # Drop bookkeeping-only groups (rows with no user/assistant messages).
+    sessions = {sid: s for sid, s in sessions.items() if s.message_count > 0}
     if args.since:
         sessions = filter_recent(sessions, args.since)
     if not sessions:
@@ -82,6 +85,13 @@ def main(argv: list[str] | None = None) -> int:
         with open(args.markdown, "w", encoding="utf-8") as fh:
             fh.write(to_markdown(sessions, findings))
         print(f"  Markdown report → {args.markdown}")
+    if args.html:
+        from datetime import datetime
+        from .html import to_html
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        with open(args.html, "w", encoding="utf-8") as fh:
+            fh.write(to_html(sessions, findings, generated=stamp))
+        print(f"  HTML dashboard → {args.html}")
 
     return 0
 
